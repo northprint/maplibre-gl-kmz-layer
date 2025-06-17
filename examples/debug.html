@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MapLibre GL KMZ Layer Debug</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="../dist/maplibre-gl-kmz-layer.js"></script>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    #container { display: flex; height: 100vh; }
+    #map { flex: 1; }
+    #debug-panel {
+      width: 400px;
+      background: #f5f5f5;
+      overflow-y: auto;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    #debug-panel h3 {
+      margin-top: 0;
+    }
+    .file-input {
+      margin-bottom: 20px;
+    }
+    .debug-section {
+      background: white;
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .debug-section h4 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: #333;
+    }
+    .debug-section pre {
+      margin: 0;
+      font-size: 12px;
+      background: #f0f0f0;
+      padding: 5px;
+      border-radius: 2px;
+      overflow-x: auto;
+    }
+    .feature-item {
+      background: #fafafa;
+      padding: 5px;
+      margin: 5px 0;
+      border-left: 3px solid #2196F3;
+      font-size: 12px;
+    }
+    .feature-item.warning {
+      border-left-color: #ff9800;
+      background: #fff3e0;
+    }
+    .feature-item.error {
+      border-left-color: #f44336;
+      background: #ffebee;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .stat-item {
+      background: #e3f2fd;
+      padding: 10px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .stat-item .value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #1976d2;
+    }
+    .stat-item .label {
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="debug-panel">
+      <h3>KMZ Debug Panel</h3>
+      
+      <div class="file-input">
+        <input type="file" id="fileInput" accept=".kmz,.kml">
+      </div>
+      
+      <div id="debug-content">
+        <p>KMZファイルを選択してデバッグ情報を表示</p>
+      </div>
+    </div>
+    
+    <div id="map"></div>
+  </div>
+  
+  <script>
+    // マップを初期化
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tile.openstreetmap.jp/styles/osm-bright-ja/style.json',
+      center: [139.7670, 35.6814],
+      zoom: 10
+    });
+    
+    let kmzLayer = null;
+    let debugData = {
+      features: [],
+      styles: {},
+      warnings: [],
+      errors: []
+    };
+    
+    // デバッグ情報を表示
+    function updateDebugPanel() {
+      const content = document.getElementById('debug-content');
+      
+      let html = '';
+      
+      // 統計情報
+      html += '<div class="stats">';
+      html += `<div class="stat-item"><div class="value">${debugData.features.length}</div><div class="label">Features</div></div>`;
+      html += `<div class="stat-item"><div class="value">${Object.keys(debugData.styles).length}</div><div class="label">Styles</div></div>`;
+      html += `<div class="stat-item"><div class="value">${debugData.warnings.length}</div><div class="label">Warnings</div></div>`;
+      html += `<div class="stat-item"><div class="value">${debugData.errors.length}</div><div class="label">Errors</div></div>`;
+      html += '</div>';
+      
+      // エラー
+      if (debugData.errors.length > 0) {
+        html += '<div class="debug-section">';
+        html += '<h4>Errors</h4>';
+        debugData.errors.forEach(err => {
+          html += `<div class="feature-item error">${err}</div>`;
+        });
+        html += '</div>';
+      }
+      
+      // 警告
+      if (debugData.warnings.length > 0) {
+        html += '<div class="debug-section">';
+        html += '<h4>Warnings</h4>';
+        debugData.warnings.forEach(warn => {
+          html += `<div class="feature-item warning">${warn}</div>`;
+        });
+        html += '</div>';
+      }
+      
+      // スタイル情報
+      html += '<div class="debug-section">';
+      html += '<h4>Styles</h4>';
+      html += '<pre>' + JSON.stringify(debugData.styles, null, 2) + '</pre>';
+      html += '</div>';
+      
+      // フィーチャー情報
+      html += '<div class="debug-section">';
+      html += '<h4>Features (抜粋)</h4>';
+      
+      // 問題のあるフィーチャーを優先的に表示
+      const problematicFeatures = debugData.features.filter(f => {
+        if (f.geometry.type === 'Point') {
+          const [lng, lat] = f.geometry.coordinates;
+          return lng === 0 && lat === 0 || 
+                 Math.abs(lng) > 180 || 
+                 Math.abs(lat) > 90 ||
+                 isNaN(lng) || isNaN(lat);
+        }
+        return false;
+      });
+      
+      if (problematicFeatures.length > 0) {
+        html += '<div style="margin-bottom: 10px;"><strong>問題のあるフィーチャー:</strong></div>';
+        problematicFeatures.forEach((f, i) => {
+          const coords = f.geometry.coordinates;
+          html += `<div class="feature-item error">`;
+          html += `Feature ${f.id || i}: ${f.properties?.name || 'No name'}<br>`;
+          html += `座標: [${coords[0]}, ${coords[1]}]<br>`;
+          html += `スタイル: ${f.properties?._style ? JSON.stringify(f.properties._style._iconId) : 'なし'}`;
+          html += `</div>`;
+        });
+      }
+      
+      // 通常のフィーチャー（最初の10個）
+      const normalFeatures = debugData.features.slice(0, 10);
+      normalFeatures.forEach((f, i) => {
+        if (f.geometry.type === 'Point') {
+          const coords = f.geometry.coordinates;
+          const isProblematic = coords[0] === 0 && coords[1] === 0;
+          html += `<div class="feature-item ${isProblematic ? 'warning' : ''}">`;
+          html += `Feature ${f.id || i}: ${f.properties?.name || 'No name'}<br>`;
+          html += `座標: [${coords[0]}, ${coords[1]}]<br>`;
+          html += `スタイル: ${f.properties?._style ? JSON.stringify(f.properties._style._iconId) : 'なし'}`;
+          html += `</div>`;
+        }
+      });
+      
+      if (debugData.features.length > 10) {
+        html += `<div style="margin-top: 10px; font-style: italic;">... 他 ${debugData.features.length - 10} 個のフィーチャー</div>`;
+      }
+      
+      html += '</div>';
+      
+      content.innerHTML = html;
+    }
+    
+    // ファイル選択時の処理
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // デバッグデータをリセット
+      debugData = {
+        features: [],
+        styles: {},
+        warnings: [],
+        errors: []
+      };
+      
+      // 既存のレイヤーを削除
+      if (kmzLayer) {
+        kmzLayer.remove();
+      }
+      
+      // ファイルを読み込み
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          // KMZレイヤーを作成
+          kmzLayer = new MaplibreGLKMZLayer.KMZLayer({
+            id: 'kmz-layer',
+            data: event.target.result,
+            onLoad: (data) => {
+              console.log('KMZ loaded:', data);
+              
+              // デバッグデータを収集
+              debugData.features = data.features.features;
+              debugData.styles = data.styles;
+              
+              // 問題のあるフィーチャーを検出
+              data.features.features.forEach((f, i) => {
+                if (f.geometry.type === 'Point') {
+                  const [lng, lat] = f.geometry.coordinates;
+                  
+                  if (lng === 0 && lat === 0) {
+                    debugData.warnings.push(`Feature ${i}: 座標が (0,0) です - ${f.properties?.name || 'No name'}`);
+                  }
+                  
+                  if (Math.abs(lng) > 180 || Math.abs(lat) > 90) {
+                    debugData.errors.push(`Feature ${i}: 無効な座標 [${lng}, ${lat}] - ${f.properties?.name || 'No name'}`);
+                  }
+                  
+                  if (isNaN(lng) || isNaN(lat)) {
+                    debugData.errors.push(`Feature ${i}: NaN座標 - ${f.properties?.name || 'No name'}`);
+                  }
+                  
+                  // スタイル情報の確認
+                  if (f.properties?._style) {
+                    console.log(`Feature ${i} style:`, f.properties._style);
+                  }
+                }
+              });
+              
+              // デバッグパネルを更新
+              updateDebugPanel();
+              
+              // 最初のフィーチャーにズーム（有効な座標のもの）
+              const validFeature = data.features.features.find(f => {
+                if (f.geometry.type === 'Point') {
+                  const [lng, lat] = f.geometry.coordinates;
+                  return lng !== 0 || lat !== 0;
+                }
+                return true;
+              });
+              
+              if (validFeature) {
+                const index = data.features.features.indexOf(validFeature);
+                kmzLayer.zoomToFeature(index);
+              }
+            },
+            onError: (error) => {
+              debugData.errors.push('KMZ読み込みエラー: ' + error.message);
+              updateDebugPanel();
+            }
+          });
+          
+          // マップに追加
+          await kmzLayer.addTo(map);
+          
+        } catch (error) {
+          debugData.errors.push('エラー: ' + error.message);
+          updateDebugPanel();
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+    });
+    
+    // マップロード完了時
+    map.on('load', () => {
+      console.log('Map loaded');
+    });
+    
+    // スタイル画像の欠落イベントを監視
+    map.on('styleimagemissing', (e) => {
+      console.warn('Missing image:', e.id);
+      debugData.warnings.push(`Missing image: ${e.id}`);
+      updateDebugPanel();
+    });
+  </script>
+</body>
+</html>

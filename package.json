@@ -1,0 +1,72 @@
+{
+  "name": "maplibre-gl-kmz-layer",
+  "version": "0.1.0",
+  "description": "KMZ/KML layer support for MapLibre GL JS",
+  "main": "dist/maplibre-gl-kmz-layer.js",
+  "module": "dist/maplibre-gl-kmz-layer.esm.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run build",
+    "version": "npm run format && git add -A src",
+    "postversion": "git push && git push --tags"
+  },
+  "keywords": [
+    "maplibre",
+    "maplibre-gl",
+    "kmz",
+    "kml",
+    "map",
+    "gis"
+  ],
+  "author": "northprint",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/northprint/maplibre-gl-kmz-layer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/northprint/maplibre-gl-kmz-layer/issues"
+  },
+  "homepage": "https://github.com/northprint/maplibre-gl-kmz-layer#readme",
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "README.ja.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "maplibre-gl": "^3.0.0 || ^4.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.5",
+    "@rollup/plugin-node-resolve": "^16.0.1",
+    "@rollup/plugin-typescript": "^12.1.2",
+    "@types/geojson": "^7946.0.16",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.34.1",
+    "@typescript-eslint/parser": "^8.34.1",
+    "eslint": "^9.29.0",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "prettier": "^3.5.3",
+    "rollup": "^2.79.2",
+    "rollup-plugin-terser": "^7.0.2",
+    "ts-jest": "^29.4.0",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@turf/centroid": "^7.2.0",
+    "@turf/helpers": "^7.2.0",
+    "@xmldom/xmldom": "^0.9.8",
+    "jszip": "^3.10.1"
+  }
+}
