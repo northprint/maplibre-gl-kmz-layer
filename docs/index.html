@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MapLibre GL KMZ Layer Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+  <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet">
+  <!-- GitHub Pages用: GitHubから直接読み込み -->
+  <script src="https://cdn.jsdelivr.net/gh/northprint/maplibre-gl-kmz-layer@main/dist/maplibre-gl-kmz-layer.js"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    
+    .controls {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .controls h3 {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+    }
+    
+    .controls button {
+      display: block;
+      width: 100%;
+      padding: 8px;
+      margin: 5px 0;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+    }
+    
+    .controls button:hover {
+      background: #f0f0f0;
+    }
+    
+    .controls input[type="file"] {
+      display: block;
+      margin: 10px 0;
+    }
+    
+    .controls label {
+      display: block;
+      margin: 5px 0;
+      font-size: 14px;
+    }
+    
+    .controls hr {
+      margin: 10px 0;
+      border: none;
+      border-top: 1px solid #ddd;
+    }
+    
+    #info {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 300px;
+      display: none;
+    }
+    
+    /* ポップアップのスタイル改善 */
+    .maplibregl-popup {
+      max-width: 300px;
+    }
+    
+    .maplibregl-popup-content {
+      padding: 10px 15px;
+      border-radius: 4px;
+    }
+    
+    .maplibregl-popup-content h4 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 16px;
+    }
+    
+    .maplibregl-popup-content p {
+      margin: 5px 0;
+      color: #666;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    
+    .maplibregl-popup-content p strong {
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  
+  <div class="controls">
+    <h3>KMZ Layer Controls</h3>
+    <input type="file" id="fileInput" accept=".kmz,.kml">
+    <button id="toggleBtn">Toggle Layer</button>
+    <button id="removeBtn">Remove Layer</button>
+    <hr>
+    <label>
+      <input type="checkbox" id="networkLinksCheck"> Follow Network Links
+    </label>
+    <label>
+      <input type="checkbox" id="clusterCheck"> Cluster Points
+    </label>
+    <label>
+      <input type="checkbox" id="optimizationCheck"> Enable Other Optimizations
+    </label>
+  </div>
+  
+  <div id="info"></div>
+  
+  <script>
+    // マップを初期化
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: 'https://tile.openstreetmap.jp/styles/osm-bright-ja/style.json',
+      center: [139.7670, 35.6814], // 東京
+      zoom: 10
+    });
+    
+    let kmzLayer = null;
+    
+    // ファイル選択時の処理
+    document.getElementById('fileInput').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      // 既存のレイヤーを削除
+      if (kmzLayer) {
+        kmzLayer.remove();
+      }
+      
+      // ファイルを読み込み
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          // オプションを取得
+          const followNetworkLinks = document.getElementById('networkLinksCheck').checked;
+          const enableOptimization = document.getElementById('optimizationCheck').checked;
+          const clusterPoints = document.getElementById('clusterCheck').checked;
+          
+          // KMZレイヤーを作成
+          kmzLayer = new MaplibreGLKMZLayer.KMZLayer({
+            id: 'kmz-layer',
+            data: event.target.result,
+            followNetworkLinks: followNetworkLinks,
+            optimization: (clusterPoints || enableOptimization) ? {
+              enabled: true,
+              clusterPoints: clusterPoints,
+              clusterRadius: 50,
+              clusterMaxZoom: 14,
+              simplifyTolerance: 0.0001,
+              enableLOD: enableOptimization
+            } : undefined,
+            onLoad: (data) => {
+              console.log('KMZ loaded:', data);
+              
+              // 情報を表示
+              const info = document.getElementById('info');
+              info.style.display = 'block';
+              info.innerHTML = `
+                <h4>KMZ Info</h4>
+                <p><strong>Name:</strong> ${data.metadata?.name || 'Unknown'}</p>
+                <p><strong>Features:</strong> ${data.features.features.length}</p>
+                <p><strong>Styles:</strong> ${Object.keys(data.styles).length}</p>
+                ${clusterPoints ? '<p><strong>Clustering:</strong> Enabled</p>' : ''}
+                ${enableOptimization ? '<p><strong>Other Optimizations:</strong> Enabled</p>' : ''}
+                ${followNetworkLinks ? '<p><strong>Network Links:</strong> Following</p>' : ''}
+              `;
+              
+              // 最初のフィーチャーにズーム
+              if (data.features.features.length > 0) {
+                kmzLayer.zoomToFeature(0);
+              }
+            },
+            onError: (error) => {
+              alert('Error loading KMZ: ' + error.message);
+            }
+          });
+          
+          // マップに追加
+          await kmzLayer.addTo(map);
+          
+        } catch (error) {
+          alert('Error: ' + error.message);
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+    });
+    
+    // トグルボタン
+    document.getElementById('toggleBtn').addEventListener('click', () => {
+      if (kmzLayer) {
+        kmzLayer.toggle();
+      }
+    });
+    
+    // 削除ボタン
+    document.getElementById('removeBtn').addEventListener('click', () => {
+      if (kmzLayer) {
+        kmzLayer.remove();
+        kmzLayer = null;
+        document.getElementById('info').style.display = 'none';
+      }
+    });
+    
+    // マップクリックイベント
+    map.on('click', (e) => {
+      if (!kmzLayer) return;
+      
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: ['kmz-layer-points', 'kmz-layer-lines', 'kmz-layer-fills', 'kmz-layer-icon-points']
+      });
+      
+      if (features.length > 0) {
+        const feature = features[0];
+        const coordinates = e.lngLat;
+        const properties = feature.properties;
+        
+        // ポップアップを表示
+        let html = '<div>';
+        if (properties.name) {
+          html += `<h4>${properties.name}</h4>`;
+        }
+        if (properties.description) {
+          // HTMLタグを含む可能性があるのでサニタイズ
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = properties.description;
+          html += `<p>${tempDiv.textContent || tempDiv.innerText || ''}</p>`;
+        }
+        
+        // その他のプロパティ
+        const otherProps = Object.keys(properties).filter(key => 
+          key !== 'name' && 
+          key !== 'description' && 
+          !key.startsWith('_') &&
+          properties[key] !== null &&
+          properties[key] !== undefined
+        );
+        
+        if (otherProps.length > 0) {
+          html += '<hr style="margin: 10px 0; border: none; border-top: 1px solid #eee;">';
+          otherProps.forEach(key => {
+            html += `<p><strong>${key}:</strong> ${properties[key]}</p>`;
+          });
+        }
+        
+        html += '</div>';
+        
+        new maplibregl.Popup()
+          .setLngLat(coordinates)
+          .setHTML(html)
+          .addTo(map);
+      }
+    });
+    
+    // カーソルスタイル（全てのクリック可能なレイヤーに対して設定）
+    const clickableLayers = ['kmz-layer-points', 'kmz-layer-icon-points', 'kmz-layer-lines', 'kmz-layer-fills'];
+    
+    clickableLayers.forEach(layerId => {
+      map.on('mouseenter', layerId, () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      
+      map.on('mouseleave', layerId, () => {
+        map.getCanvas().style.cursor = '';
+      });
+    });
+  </script>
+</body>
+</html>
