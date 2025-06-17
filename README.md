@@ -2,7 +2,7 @@
 
 A KMZ/KML layer plugin for MapLibre GL JS
 
-[日本語版](./README.ja.md)
+🌐 [Live Demo](https://northprint.github.io/maplibre-gl-kmz-layer/) | 📖 [日本語版](./README.ja.md)
 
 ## Features
 

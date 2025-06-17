@@ -2,6 +2,8 @@
 
 MapLibre GL JS用のKMZ/KMLファイルレイヤープラグイン
 
+🌐 [ライブデモ](https://northprint.github.io/maplibre-gl-kmz-layer/) | 📖 [English](./README.md)
+
 ## 特徴
 
 - KMZファイル（圧縮されたKML）の読み込みをサポート
