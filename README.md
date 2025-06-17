@@ -22,6 +22,11 @@ A KMZ/KML layer plugin for MapLibre GL JS
 npm install maplibre-gl-kmz-layer
 ```
 
+Or install directly from GitHub:
+```bash
+npm install github:northprint/maplibre-gl-kmz-layer
+```
+
 ## Usage
 
 ```javascript

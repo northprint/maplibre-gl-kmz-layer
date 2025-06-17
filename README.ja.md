@@ -20,6 +20,11 @@ MapLibre GL JS用のKMZ/KMLファイルレイヤープラグイン
 npm install maplibre-gl-kmz-layer
 ```
 
+またはGitHubから直接インストール:
+```bash
+npm install github:northprint/maplibre-gl-kmz-layer
+```
+
 ## 使用方法
 
 ```javascript
