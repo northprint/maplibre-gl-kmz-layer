@@ -119,10 +119,13 @@ describe('KMZParser', () => {
 
       const result = parser.parseKML(kml);
 
-      expect(Object.keys(result.styles)).toHaveLength(1);
+      expect(Object.keys(result.styles)).toHaveLength(2); // #ありとなしの両方
       expect(result.styles['#redLine']).toBeDefined();
+      expect(result.styles['redLine']).toBeDefined();
       expect(result.styles['#redLine'].color).toBe('rgba(255, 0, 0, 1.00)');
       expect(result.styles['#redLine'].width).toBe(3);
+      expect(result.styles['redLine'].color).toBe('rgba(255, 0, 0, 1.00)');
+      expect(result.styles['redLine'].width).toBe(3);
     });
 
     it('should parse ExtendedData', () => {
