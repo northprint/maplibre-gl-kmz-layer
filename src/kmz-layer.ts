@@ -54,19 +54,6 @@ export class KMZLayer {
       // KMZをパース
       this.parseResult = await this.parser.parseKMZ(data);
       
-      // デバッグ：パース結果を確認
-      console.log('KMZ parse result:', {
-        featureCount: this.parseResult.features.features.length,
-        styles: Object.keys(this.parseResult.styles),
-        features: this.parseResult.features.features.map(f => ({
-          type: f.geometry.type,
-          name: f.properties?.name,
-          hasStyle: !!f.properties?._style,
-          styleId: f.properties?._style?.id,
-          hasIcon: !!f.properties?._style?.icon,
-          coordinates: (f.geometry as any).coordinates
-        }))
-      });
       
       // NetworkLinkの処理
       if (this.options.followNetworkLinks) {
@@ -92,14 +79,6 @@ export class KMZLayer {
         }
       }
       
-      // パース結果のデバッグ
-      console.log('Parse result features count:', this.parseResult.features.features.length);
-      const sampleFeatures = this.parseResult.features.features.slice(0, 3);
-      console.log('Sample features before optimization:', sampleFeatures.map(f => ({
-        name: f.properties?.name,
-        _style: f.properties?._style,
-        hasStyle: f.properties && '_style' in f.properties
-      })));
       
       // パフォーマンス最適化
       if (this.options.optimization?.enabled || this.options.optimization?.clusterPoints) {
@@ -114,9 +93,6 @@ export class KMZLayer {
         if (this.options.optimization?.enabled) {
           this.parseResult.features = this.performanceOptimizer.optimizeFeatures(this.parseResult.features);
           
-          // メモリ使用量をログ出力
-          const memoryUsage = this.performanceOptimizer.estimateMemoryUsage(this.parseResult.features);
-          console.log(`推定メモリ使用量: ${(memoryUsage / 1024 / 1024).toFixed(2)} MB`);
         }
       }
       
@@ -134,11 +110,9 @@ export class KMZLayer {
         const clusterConfig = this.performanceOptimizer.generateClusteringConfig();
         if (clusterConfig) {
           Object.assign(sourceConfig, clusterConfig);
-          console.log('Clustering config applied:', clusterConfig);
         }
       }
       
-      console.log('Source config:', sourceConfig);
       this.map.addSource(this.sourceId, sourceConfig);
       
       // レイヤーを作成
@@ -176,39 +150,28 @@ export class KMZLayer {
     // KMZ内のアイコンを抽出（zipが存在する場合）
     const zip = (this.parseResult as any)._zip;
     if (zip) {
-      console.log('KMZからアイコンを抽出中...');
-      console.log('要求されたアイコンURL:', Array.from(iconUrls));
       const icons = await this.iconManager.extractIconsFromKMZ(zip, Array.from(iconUrls));
-      console.log(`抽出されたアイコン: ${icons.size}個`);
       
-      // 抽出されたアイコンの詳細を表示
-      icons.forEach((dataUrl, iconUrl) => {
-        console.log(`✅ 抽出成功: ${iconUrl} (データサイズ: ${dataUrl.length}文字)`);
-      });
       
       // アイコンをマップに追加
       for (const [styleId, style] of Object.entries(this.parseResult.styles)) {
-        console.log(`Processing style ${styleId}:`, style);
         if (style.icon) {
           const iconId = `${this.options.id}-icon-${styleId.replace('#', '')}`;
           const scale = style.scale || 1;
           
           if (icons.has(style.icon)) {
             // KMZ内のアイコンを使用
-            console.log(`Found icon in KMZ for style ${styleId}: ${style.icon}`);
             await this.iconManager.addIconToMap(iconId, icons.get(style.icon)!, scale);
             (style as any)._iconId = iconId;
           } else {
             // 外部URLのアイコンを試す
             try {
-              console.log(`Trying external icon for style ${styleId}: ${style.icon}`);
               const dataUrl = await this.iconManager.loadExternalIcon(style.icon);
               if (dataUrl) {
                 await this.iconManager.addIconToMap(iconId, dataUrl, scale);
                 (style as any)._iconId = iconId;
               } else {
                 // アイコンが見つからない場合は、スタイルIDとカラーから適切なアイコンを選択
-                console.log(`Icon not found for style ${styleId}, selecting by color and ID`);
                 
                 // カラーコードを取得（KMLのABGR形式をHEXに変換）
                 const colorHex = style.color ? abgrToHex(style.color) : undefined;
@@ -220,10 +183,8 @@ export class KMZLayer {
                 
                 if (this.map && this.map.hasImage(makiIconId)) {
                   (style as any)._iconId = makiIconId;
-                  console.log(`カラーベースでアイコンを選択: ${styleId} (${colorHex}) → ${makiIconId}`);
                 } else if (this.map && this.map.hasImage(selectedIcon)) {
                   (style as any)._iconId = selectedIcon;
-                  console.log(`カラーベースでアイコンを選択: ${styleId} (${colorHex}) → ${selectedIcon}`);
                 } else {
                   // それでも見つからない場合は汎用的なアイコンを試す
                   const genericIcons = ['marker', 'circle', 'marker-15', 'circle-15'];
@@ -232,7 +193,6 @@ export class KMZLayer {
                   for (const icon of genericIcons) {
                     if (this.map && this.map.hasImage(icon)) {
                       (style as any)._iconId = icon;
-                      console.log(`汎用アイコンを使用: ${styleId} → ${icon}`);
                       foundIcon = true;
                       break;
                     }
@@ -240,7 +200,6 @@ export class KMZLayer {
                   
                   if (!foundIcon) {
                     // 最終的にデフォルトマーカーを使用
-                    console.log(`No suitable icon found for ${styleId}, using default marker`);
                     (style as any)._iconId = defaultMarkerId;
                   }
                 }
@@ -253,14 +212,12 @@ export class KMZLayer {
               
               if (this.map && (this.map.hasImage(selectedIcon) || this.map.hasImage(`${selectedIcon}-15`))) {
                 (style as any)._iconId = this.map.hasImage(`${selectedIcon}-15`) ? `${selectedIcon}-15` : selectedIcon;
-                console.log(`エラー時にカラーベースでアイコンを選択: ${styleId} → ${(style as any)._iconId}`);
               } else {
                 (style as any)._iconId = defaultMarkerId;
               }
             }
           }
         } else {
-          console.log(`Style ${styleId} has no icon`);
         }
       }
     }
@@ -363,23 +320,6 @@ export class KMZLayer {
     // アイコンポイントレイヤー
     const iconPointLayerId = `${this.options.id}-icon-points`;
     
-    // デバッグ：フィーチャーのプロパティを確認
-    const sampleFeatures = this.parseResult.features.features.slice(0, 3);
-    console.log('Sample feature properties:', sampleFeatures.map(f => ({
-      name: f.properties?.name,
-      style: f.properties?._style,
-      styleId: f.properties?._style?.id,
-      iconId: f.properties?._style?._iconId,
-      geometry: f.geometry?.type
-    })));
-    
-    // 最初のポイントフィーチャーを詳しく見る
-    const firstPoint = this.parseResult.features.features.find(f => f.geometry?.type === 'Point');
-    if (firstPoint) {
-      console.log('First point feature:', firstPoint);
-      console.log('First point properties:', firstPoint.properties);
-      console.log('First point style:', firstPoint.properties?._style);
-    }
     
     this.map.addLayer({
       id: iconPointLayerId,
@@ -496,47 +436,6 @@ export class KMZLayer {
     });
     this.layerIds.push(outlineLayerId);
     
-    // デバッグ：作成されたレイヤーを確認
-    console.log('Created layers:', this.layerIds);
-    
-    // 各レイヤーのフィーチャー数を確認（少し遅延させて実行）
-    setTimeout(() => {
-      // アイコンの存在を確認
-      const iconIds = Object.values(this.parseResult!.styles)
-        .filter(style => (style as any)._iconId)
-        .map(style => (style as any)._iconId);
-      
-      console.log('登録されたアイコンID:', iconIds);
-      
-      // 各アイコンが実際に存在するか確認
-      iconIds.forEach(iconId => {
-        if (this.map!.hasImage(iconId)) {
-          console.log(`✅ アイコン存在: ${iconId}`);
-        } else {
-          console.log(`❌ アイコン不在: ${iconId}`);
-        }
-      });
-      
-      this.layerIds.forEach(layerId => {
-        const features = this.map!.queryRenderedFeatures(undefined, {
-          layers: [layerId]
-        });
-        console.log(`Layer ${layerId}: ${features.length} rendered features`);
-        if (features.length > 0 && layerId.includes('point')) {
-          console.log(`Sample feature from ${layerId}:`, features[0].properties);
-        }
-      });
-      
-      // ソースのフィーチャーを直接確認
-      const source = this.map!.getSource(this.sourceId) as any;
-      if (source && source._data) {
-        const pointFeatures = source._data.features.filter((f: any) => f.geometry.type === 'Point');
-        console.log(`Source has ${pointFeatures.length} point features`);
-        if (pointFeatures.length > 0) {
-          console.log('First point from source:', pointFeatures[0]);
-        }
-      }
-    }, 1000);
     
     // 初期表示設定
     if (this.options.visible === false) {
@@ -602,10 +501,8 @@ export class KMZLayer {
         
         if (this.map.hasImage(makiIconId)) {
           // エイリアスとして登録
-          console.log(`Missing icon ${id} → alias to ${makiIconId}`);
           return; // MapLibreが自動的に処理
         } else if (this.map.hasImage(similarIcon)) {
-          console.log(`Missing icon ${id} → alias to ${similarIcon}`);
           return; // MapLibreが自動的に処理
         }
       }

@@ -17,20 +17,15 @@ export class IconManager {
     
     // ZIP内のすべてのファイルをリスト（デバッグ用）
     const allFiles = Object.keys(zip.files);
-    console.log('KMZ内のファイル一覧:', allFiles);
     
     // 画像ファイルのみフィルタリング
     const imageFiles = allFiles.filter(file => 
       /\.(png|jpg|jpeg|gif|bmp|svg)$/i.test(file)
     );
-    console.log('画像ファイル:', imageFiles);
     
     // imagesフォルダ内のファイルを確認
-    const imagesFolder = allFiles.filter(file => file.startsWith('images/'));
-    console.log('imagesフォルダ内のファイル:', imagesFolder);
     
     for (const iconUrl of iconUrls) {
-      console.log(`アイコンを探しています: ${iconUrl}`);
       
       // パスを正規化
       const normalizedUrl = iconUrl.replace(/^\.\//, '').replace(/^\//, '');
@@ -52,10 +47,8 @@ export class IconManager {
       for (const variant of pathVariants) {
         const iconFile = zip.file(variant);
         if (iconFile) {
-          console.log(`アイコンが見つかりました: ${iconUrl} → ${variant}`);
           try {
             const blob = await iconFile.async('blob');
-            console.log(`Blobタイプ: ${blob.type}, サイズ: ${blob.size} bytes`);
             
             // 拡張子からMIMEタイプを判定
             const ext = variant.toLowerCase().split('.').pop();
@@ -68,7 +61,6 @@ export class IconManager {
             // 正しいMIMEタイプでBlobを再作成
             const typedBlob = new Blob([blob], { type: mimeType });
             const dataUrl = await this.blobToDataURL(typedBlob);
-            console.log(`DataURL生成成功: ${dataUrl.substring(0, 50)}...`);
             icons.set(iconUrl, dataUrl);
             this.iconCache.set(iconUrl, dataUrl);
             found = true;
@@ -85,7 +77,6 @@ export class IconManager {
         if (fileName) {
           const matchingFile = imageFiles.find(f => f.endsWith(fileName));
           if (matchingFile) {
-            console.log(`ファイル名で一致: ${iconUrl} → ${matchingFile}`);
             const iconFile = zip.file(matchingFile);
             if (iconFile) {
               try {
@@ -118,7 +109,6 @@ export class IconManager {
       }
     }
     
-    console.log(`抽出されたアイコン数: ${icons.size}`);
     return icons;
   }
   
@@ -147,11 +137,9 @@ export class IconManager {
   
   // MapLibre GLにアイコンを追加
   async addIconToMap(iconId: string, iconUrl: string, scale: number = 1): Promise<boolean> {
-    console.log(`addIconToMap開始: iconId=${iconId}, scale=${scale}`);
     
     // 既に読み込み済みの場合はスキップ
     if (this.loadedIcons.has(iconId)) {
-      console.log(`アイコン ${iconId} は既に読み込み済み`);
       return true;
     }
     
@@ -170,7 +158,6 @@ export class IconManager {
         }
       }
       
-      console.log(`画像URL準備完了: ${imageUrl.substring(0, 50)}...`);
       
       // 画像を読み込み
       const img = await this.loadImage(imageUrl);
@@ -179,14 +166,11 @@ export class IconManager {
       if (scale !== 1) {
         const scaledImg = this.scaleImage(img, scale);
         this.map.addImage(iconId, scaledImg);
-        console.log(`スケール済みアイコンを追加: ${iconId} (scale=${scale})`);
       } else {
         this.map.addImage(iconId, img);
-        console.log(`アイコンを追加: ${iconId}`);
       }
       
       this.loadedIcons.add(iconId);
-      console.log(`✅ アイコン追加成功: ${iconId}`);
       return true;
     } catch (error) {
       console.warn(`アイコンの追加に失敗: ${iconId}`, error);
