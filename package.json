@@ -1,6 +1,6 @@
 {
   "name": "maplibre-gl-kmz-layer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "KMZ/KML layer support for MapLibre GL JS",
   "main": "dist/maplibre-gl-kmz-layer.js",
   "module": "dist/maplibre-gl-kmz-layer.esm.js",
